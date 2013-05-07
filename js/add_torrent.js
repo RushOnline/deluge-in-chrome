@@ -76,7 +76,7 @@ function showDownloadIcon() {
                 }
             });
         } else {
-            chrome.extension.sendRequest({ msg: 'add_torrent_from_url', url: this.href},
+            chrome.extension.sendRequest({ msg: 'add_torrent_from_url', url: $(this).data('href')},
                 function (response) {
                     if (response.msg === 'success') {
                         $('img', link).attr('src', iconAdded);
