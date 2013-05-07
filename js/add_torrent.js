@@ -2,12 +2,20 @@
  * This is a generalised search for torrent links.
  */
 
+function is_rutracker() {
+  return (location.origin === "http://rutracker.org");
+}
+
 function showDownloadIcon() {
     var links = []
         // For all the found links, add the little download icon.
         , icon = chrome.extension.getURL('images/icons/16.png')
         , iconAdded = chrome.extension.getURL('images/icons/16_green.png')
         , i;
+
+    if (is_rutracker()) $('.dl-link').each(function() {
+        links.push(this);
+    });
   
     // Find any anchor links that mention torrents.
     $('a[href*=torrent], a:contains(torrent)').each(function (i) {
@@ -25,21 +33,56 @@ function showDownloadIcon() {
     for (i = 0; i < links.length; i += 1) {
         // Check we don't already have the icon.
         if ($(links[i]).next('.deluge-icon').length === 0) {
-            $(links[i]).after('<a class="deluge-icon" title="Download in Deluge!" href="' + links[i].href + '"><img src="' + icon + '" alt="Download in Deluge" style="border:0;" /></a>');
+            $(links[i]).after('<a class="deluge-icon" title="Download in Deluge!" href=\"#\" data-href="' + links[i].href + '"><img src="' + icon + '" alt="Download in Deluge" style="border:0;" /></a>');
         }
     }
   
     // For all the new Deluge download links we need to send a message to the main
     // extension to perform the adding action (see background.html).
     $('.deluge-icon').live('click', function () {
-        var link = this;
-    
-        chrome.extension.sendRequest({ msg: 'add_torrent_from_url', url: this.href},
-            function (response) {
-                if (response.msg === 'success') {
-                    $('img', link).attr('src', iconAdded);
+        var link = this
+            , href = $(this).data('href');
+
+        console.debug(this);
+
+        if (is_rutracker()) {
+            console.debug('Start rutracker torrent download: ', href);
+
+            $.cookie('bb_dl', href.slice(href.lastIndexOf('=') + 1));
+
+            $.ajax({
+                type:   "POST",
+                url:    href,
+                beforeSend: function (xhr) {
+                    xhr.overrideMimeType("text/plain; charset=x-user-defined");
+                    xhr.responseType = 'arraybuffer';
+                },
+                success: function(data) {
+                    console.debug('Torrent has been downloaded.');
+
+                    var binary = Array.prototype.map.call(data, function(c) { return c.charCodeAt(0) & 0xFF; });
+
+                    chrome.extension.sendRequest({ msg: 'add_torrents', url: this.href, data: base64ArrayBuffer(binary)},
+                        function (response) {
+                            if (response.msg === 'success') {
+                                $('img', link).attr('src', iconAdded);
+                            } else {
+                                console.debug('add_torrent failed:', response);
+                            }
+                    });
+                },
+                error: function(result) {
+                    console.debug('Torrent download failed: ', result);
                 }
             });
+        } else {
+            chrome.extension.sendRequest({ msg: 'add_torrent_from_url', url: this.href},
+                function (response) {
+                    if (response.msg === 'success') {
+                        $('img', link).attr('src', iconAdded);
+                    }
+                });
+        }
         return false;
     });
 }

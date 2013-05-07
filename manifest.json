@@ -30,7 +30,12 @@
   "content_scripts": [
     {
       "matches": ["http://*/*", "https://*/*"],
-      "js": ["js/libs/jquery-1.7.1.min.js", "js/add_torrent.js"]
+      "js": [
+        "js/libs/jquery-1.7.1.min.js",
+        "js/libs/base64ArrayBuffer.js",
+        "js/libs/jquery.cookie.js",
+        "js/add_torrent.js"
+      ]
     }
   ],
   "permissions": [

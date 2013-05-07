@@ -293,6 +293,57 @@ var Background = (function($) {
     };
 
     /**
+    * Add a torrent to Deluge using a downloaded file data.
+    * as part of Chrome extensions messaging system.
+    */
+    pub.addTorrents = function (request, sender, sendResponse) {
+
+        // Need to get config values to add with the torrent first.
+        Deluge.api('core.get_config_values', [['add_paused', 'compact_allocation', 'download_location',
+            'max_connections_per_torrent', 'max_download_speed_per_torrent',
+            'max_upload_speed_per_torrent', 'max_upload_slots_per_torrent',
+            'prioritize_first_last_pieces']])
+            .success(function (options) {
+                if (options) {
+                    if (Global.getDebugMode()) {
+                        console.debug('deluge: got options!', options);
+                    }
+                    Deluge.api('web.add_torrents', [[{path: '/tmp/.nocontent', data: request.data, options: options}]])
+                        .success(function (id) {
+                            if (id) {
+                                if (Global.getDebugMode()) {
+                                    console.log('deluge: downloaded torrent.');
+                                }
+                                sendResponse({msg: 'success', result: id, error: null});
+                                return;
+                            }
+                            if (Global.getDebugMode()) {
+                                console.log('deluge: failed to add torrent from magnet, no obj or result.');
+                            }
+                            sendResponse({msg: 'error', result: null, error: 'failed to add torrent from magnet.'});
+                        })
+                        .error(function (req, status, err) {
+                            if (Global.getDebugMode()) {
+                                console.log('deluge: failed to add torrent from magnet.');
+                            }
+                            sendResponse({msg: 'error', result: null, error: 'failed to add torrent from magnet.'});
+                        });
+                    return;
+                }
+                if (Global.getDebugMode()) {
+                    console.log('deluge: unable to fetch options.');
+                }
+                sendResponse({msg: 'error', result: null, error: 'unable to fetch options.'});
+            })
+            .error(function (req, status, err) {
+                if (Global.getDebugMode()) {
+                    console.log('deluge: unable to fetch options.');
+                }
+                sendResponse({msg: 'error', result: null, error: 'unable to fetch options.'});
+            });
+    }
+    
+    /**
     * Add a torrent to Deluge using a magnet URL. This method is meant to be called
     * as part of Chrome extensions messaging system.
     *
@@ -422,18 +473,24 @@ jQuery(document).ready(function ($) {
 
 // Any requests send via chrome ext messaging system.
 chrome.extension.onRequest.addListener(function (request, sender, sendResponse) {
+    if (Global.getDebugMode()) console.debug('extension request: ', request);
 
     if (request.msg === 'add_torrent_from_url') {
         Background.addTorrentFromUrl(request, sender, sendResponse);
         return;
     } else if (request.msg === 'get_download_options') {
-        sendResponse({
-            'enable_deluge_icon': localStorage.delugeDownloadIcon
-            , 'enable_one_click_magnets': localStorage.oneClickMagnets
-            });
+        response = {
+            'enable_deluge_icon': localStorage.delugeDownloadIcon,
+            'enable_one_click_magnets': localStorage.oneClickMagnets
+            }
+        if (Global.getDebugMode()) console.debug('get_download_options -> ', response);
+        sendResponse(response);
         return;
     } else if  (request.msg === 'add_torrent_from_magnet') {
         Background.addTorrentFromMagnet(request, sender, sendResponse);
+        return;
+    } else if  (request.msg === 'add_torrents') {
+        Background.addTorrents(request, sender, sendResponse);
         return;
     }
 
